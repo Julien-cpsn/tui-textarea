@@ -18,6 +18,8 @@ mod textarea;
 mod util;
 mod widget;
 mod word;
+#[cfg(feature = "syntax-highlighting")]
+mod syntax_highlighting;
 
 #[cfg(feature = "ratatui")]
 #[allow(clippy::single_component_path_imports)]

@@ -89,9 +89,11 @@ impl<'a> Renderer<'a> {
         let lnum_len = num_digits(lines_len);
         let bottom_row = cmp::min(top_row + height, lines_len);
         let mut lines = Vec::with_capacity(bottom_row - top_row);
+        
         for (i, line) in self.0.lines()[top_row..bottom_row].iter().enumerate() {
             lines.push(self.0.line_spans(line.as_str(), top_row + i, lnum_len));
         }
+        
         Text::from(lines)
     }
 }
@@ -129,9 +131,11 @@ impl<'a> Widget for Renderer<'a> {
         // To get fine control over the text color and the surrrounding block they have to be rendered separately
         // see https://github.com/ratatui-org/ratatui/issues/144
         let mut text_area = area;
+
         let mut inner = Paragraph::new(text)
             .style(style)
             .alignment(self.0.alignment());
+
         if let Some(b) = self.0.block() {
             text_area = b.inner(area);
             b.clone().render(area, buf)

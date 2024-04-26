@@ -96,6 +96,8 @@ pub struct TextArea<'a> {
     mask: Option<char>,
     selection_start: Option<(usize, usize)>,
     select_style: Style,
+    #[cfg(feature = "syntax-highlighting")]
+    pub extension: String
 }
 
 /// Convert any iterator whose elements can be converted into [`String`] into [`TextArea`]. Each [`String`] element is
@@ -118,6 +120,7 @@ pub struct TextArea<'a> {
 /// let textarea = TextArea::from(slice.iter().copied());
 /// assert_eq!(textarea.lines(), ["hello", "world"]);
 /// ```
+#[cfg(not(feature = "syntax-highlighting"))]
 impl<'a, I> From<I> for TextArea<'a>
 where
     I: IntoIterator,
@@ -125,6 +128,17 @@ where
 {
     fn from(i: I) -> Self {
         Self::new(i.into_iter().map(|s| s.into()).collect::<Vec<String>>())
+    }
+}
+
+#[cfg(feature = "syntax-highlighting")]
+impl<'a, I> From<I> for TextArea<'a>
+    where
+        I: IntoIterator,
+        I::Item: Into<String>,
+{
+    fn from(i: I) -> Self {
+        Self::new(i.into_iter().map(|s| s.into()).collect::<Vec<String>>(), "rust")
     }
 }
 
@@ -159,11 +173,20 @@ impl<'a, S: Into<String>> FromIterator<S> for TextArea<'a> {
 /// assert_eq!(textarea.lines(), [""]);
 /// assert!(textarea.is_empty());
 /// ```
+#[cfg(not(feature = "syntax-highlighting"))]
 impl<'a> Default for TextArea<'a> {
     fn default() -> Self {
         Self::new(vec![String::new()])
     }
 }
+
+#[cfg(feature = "syntax-highlighting")]
+impl<'a> Default for TextArea<'a> {
+    fn default() -> Self {
+        Self::new(vec![String::new()], "rust")
+    }
+}
+
 
 impl<'a> TextArea<'a> {
     /// Create [`TextArea`] instance with given lines. If you have value other than `Vec<String>`, [`TextArea::from`]
@@ -175,6 +198,7 @@ impl<'a> TextArea<'a> {
     /// let textarea = TextArea::new(lines);
     /// assert_eq!(textarea.lines(), ["hello", "...", "goodbye"]);
     /// ```
+    #[cfg(not(feature = "syntax-highlighting"))]
     pub fn new(mut lines: Vec<String>) -> Self {
         if lines.is_empty() {
             lines.push(String::new());
@@ -201,6 +225,37 @@ impl<'a> TextArea<'a> {
             mask: None,
             selection_start: None,
             select_style: Style::default().bg(Color::LightBlue),
+        }
+    }
+
+    #[cfg(feature = "syntax-highlighting")]
+    pub fn new(mut lines: Vec<String>, extension: &str) -> Self {
+        if lines.is_empty() {
+            lines.push(String::new());
+        }
+
+        Self {
+            lines,
+            block: None,
+            style: Style::default(),
+            cursor: (0, 0),
+            tab_len: 4,
+            hard_tab_indent: false,
+            history: History::new(50),
+            cursor_line_style: Style::default().add_modifier(Modifier::UNDERLINED),
+            line_number_style: None,
+            viewport: Viewport::default(),
+            cursor_style: Style::default().add_modifier(Modifier::REVERSED),
+            yank: YankText::default(),
+            #[cfg(feature = "search")]
+            search: Search::default(),
+            alignment: Alignment::Left,
+            placeholder: String::new(),
+            placeholder_style: Style::default().fg(Color::DarkGray),
+            mask: None,
+            selection_start: None,
+            select_style: Style::default().bg(Color::LightBlue),
+            extension: String::from(extension)
         }
     }
 
@@ -1583,7 +1638,10 @@ impl<'a> TextArea<'a> {
             hl.selection(row, start.row, start.offset, end.row, end.offset);
         }
 
-        hl.into_spans()
+        #[cfg(feature = "syntax-highlighting")]
+        return hl.into_spans(Some(&self.extension));
+        #[cfg(not(feature = "syntax-highlighting"))]
+        return hl.into_spans(None);
     }
 
     /// Build a ratatui (or tui-rs) widget to render the current state of the textarea. The widget instance returned

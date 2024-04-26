@@ -10,6 +10,9 @@ use std::iter;
 use tui::text::Spans as Line;
 use unicode_width::UnicodeWidthChar as _;
 
+#[cfg(feature = "syntax-highlighting")]
+use crate::syntax_highlighting::highlight_syntax;
+
 enum Boundary {
     Cursor(Style),
     Select(Style),
@@ -186,7 +189,7 @@ impl<'a> LineHighlighter<'a> {
         }
     }
 
-    pub fn into_spans(self) -> Line<'a> {
+    pub fn into_spans(self, _extension: Option<&str>) -> Line<'a> {
         let Self {
             line,
             mut spans,
@@ -203,8 +206,21 @@ impl<'a> LineHighlighter<'a> {
 
         if boundaries.is_empty() {
             let built = builder.build(line);
+
             if !built.is_empty() {
+                #[cfg(not(feature = "syntax-highlighting"))]
                 spans.push(Span::styled(built, style_begin));
+
+                #[cfg(feature = "syntax-highlighting")]
+                {
+                    let mut highlighted_line = highlight_syntax(&built, _extension.unwrap(), None, None);
+                    for span in &mut highlighted_line {
+                        span.style.bg = style_begin.bg;
+                        span.style.add_modifier = style_begin.add_modifier;
+                        span.style.sub_modifier = style_begin.sub_modifier;
+                        spans.push(span.clone())
+                    }
+                }
             }
             if cursor_at_end {
                 spans.push(Span::styled(" ", cursor_style));
@@ -219,13 +235,27 @@ impl<'a> LineHighlighter<'a> {
             o => o,
         });
 
+        //let line_text = builder.build(&line);
+
         let mut style = style_begin;
         let mut start = 0;
         let mut stack = vec![];
 
         for (next_boundary, end) in boundaries {
             if start < end {
+                #[cfg(not(feature = "syntax-highlighting"))]
                 spans.push(Span::styled(builder.build(&line[start..end]), style));
+
+                #[cfg(feature = "syntax-highlighting")]
+                {
+                    let mut highlighted_line = highlight_syntax(&line, _extension.unwrap(), Some(start), Some(end));
+                    for span in &mut highlighted_line {
+                        span.style.bg = style.bg;
+                        span.style.add_modifier = style.add_modifier;
+                        span.style.sub_modifier = style.sub_modifier;
+                        spans.push(span.clone())
+                    }
+                }
             }
 
             style = if let Some(s) = next_boundary.style() {
@@ -238,7 +268,19 @@ impl<'a> LineHighlighter<'a> {
         }
 
         if start != line.len() {
+            #[cfg(not(feature = "syntax-highlighting"))]
             spans.push(Span::styled(builder.build(&line[start..]), style));
+
+            #[cfg(feature = "syntax-highlighting")]
+            {
+                let mut highlighted_line = highlight_syntax(&line, _extension.unwrap(), Some(start), None);
+                for span in &mut highlighted_line {
+                    span.style.bg = style.bg;
+                    span.style.add_modifier = style.add_modifier;
+                    span.style.sub_modifier = style.sub_modifier;
+                    spans.push(span.clone())
+                }
+            }
         }
 
         if cursor_at_end {
@@ -351,7 +393,7 @@ mod tests {
     }
 
     fn assert_spans<T: Debug>(lh: LineHighlighter, want: &[(&str, Style)], context: T) {
-        let line = lh.into_spans();
+        let line = lh.into_spans(None);
         let have = line
             .spans
             .iter()

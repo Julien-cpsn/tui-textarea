@@ -1,2 +1,5 @@
 /target
 /Cargo.lock
+
+# Avoid IntelliJ files
+/.idea
